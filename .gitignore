@@ -16,6 +16,8 @@ dist/
 *.log
 MY_IP.txt
 
+desktop.ini
+
 # Налаштування редактора VS Code
 .vscode/
 .idea/

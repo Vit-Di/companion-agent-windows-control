@@ -60,3 +60,13 @@ Follow the link above to the Module repository and follow instructions there to 
 ### ⚠️ Important Note
 * **Port:** The agent listens on port **8001**. Ensure it is allowed through your firewall.
 * **Dependencies:** `nircmd.exe` must be present in the agent folder (included in the Release zip).
+
+### 🛡️ Troubleshooting / Якщо виникає помилка при запуску
+
+**[EN]** If you see a "Security Warning" window when running `start.bat`:
+1. Uncheck the box **"Always ask before opening this file"**.
+2. Click **Run**.
+
+**[UA]** Якщо при запуску `start.bat` з'являється вікно "Попередження системи безпеки":
+1. Зніміть галочку **"Завжди запитувати перед відкриттям цього файлу"**.
+2. Натисніть кнопку **Виконати**.

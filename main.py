@@ -58,6 +58,49 @@ def get_ip():
         return ip
     except:
         return '127.0.0.1'
+    
+def get_installed_apps():
+    # Цей скрипт PowerShell сканує папки Пуск
+    ps_script = r"""
+    # --- ВАЖЛИВО: Встановлюємо кодування UTF-8 для коректного виводу кирилиці ---
+    [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+    
+    $paths = @("$env:ProgramData\Microsoft\Windows\Start Menu\Programs", "$env:AppData\Microsoft\Windows\Start Menu\Programs")
+    $sh = New-Object -ComObject WScript.Shell
+    Get-ChildItem -Path $paths -Recurse -Include *.lnk | ForEach-Object { 
+        try {
+            $link = $sh.CreateShortcut($_.FullName)
+            $target = $link.TargetPath
+            if ($target -match "\.exe$") {
+                Write-Output ($_.BaseName + "|" + $target)
+            }
+        } catch {}
+    }
+    """
+    try:
+        # Додаємо явний параметр encoding='utf-8' при запуску
+        result = subprocess.run(
+            ["powershell", "-Command", ps_script], 
+            capture_output=True, 
+            text=True, 
+            encoding='utf-8', # <--- Це теж важливо
+            creationflags=0x08000000
+        )
+        apps = []
+        seen_names = set()
+        
+        for line in result.stdout.splitlines():
+            if "|" in line:
+                name, path = line.split("|", 1)
+                name = name.strip()
+                path = path.strip()
+                if name not in seen_names and "uninstall" not in name.lower():
+                    apps.append({"name": name, "path": path})
+                    seen_names.add(name)
+        
+        return sorted(apps, key=lambda x: x['name'])
+    except:
+        return []
 
 def send_unicode_text(text):
     """Надсилає текст прямо в активне вікно через WinAPI Message (найкраще для укр. мови)"""
@@ -206,10 +249,33 @@ def app_start(r: ActionRequest):
     subprocess.Popen(f'"{r.path}" {r.args}', shell=True, creationflags=0x08000000)
     return {"status": "launched"}
 
+@app.get("/apps/list")
+def list_installed_apps():
+    apps = get_installed_apps()
+    return {"apps": apps}
+
 @app.post("/system/power")
 def power(r: ActionRequest):
-    os.system(f"shutdown {'/s' if r.action=='shutdown' else '/r'} {'/f' if r.force else ''} /t 0")
-    return {"status": "done"}
+    if r.action == "shutdown":
+        os.system(f"shutdown /s {'/f' if r.force else ''} /t 0")
+    elif r.action == "reboot":
+        os.system(f"shutdown /r {'/f' if r.force else ''} /t 0")
+    elif r.action == "logout":
+        os.system(f"shutdown /l {'/f' if r.force else ''}")
+    elif r.action == "lock":
+        # Блокування екрану через системну DLL
+        ctypes.windll.user32.LockWorkStation()
+    elif r.action == "sleep":
+        # Сон (використовуємо nircmd для надійності, якщо є, або rundll32)
+        if os.path.exists(NIRCMD_PATH):
+            run_cmd("standby")
+        else:
+            # Hibernate off, then suspend
+            os.system("powercfg -h off")
+            ctypes.windll.powrprof.SetSuspendState(0, 1, 0)
+            os.system("powercfg -h on")
+            
+    return {"status": "done", "action": r.action}
 
 if __name__ == "__main__":
     # Порожня конфігурація логів, щоб уникнути помилок при запуску EXE
